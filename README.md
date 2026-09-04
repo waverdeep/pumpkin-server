@@ -54,3 +54,16 @@ uv run alembic check      # 모델과 DB가 같은지 확인
 | GET | `/api/baskets/{slug}/candies` | 주인 | 개봉. 서버 시각이 `OPEN_AT`을 지나야 내려줌 (아니면 423) |
 
 주인 식별은 `pk_owner` httponly 쿠키. `users` 테이블은 `provider` + `provider_id`만 갖고, 지금은 `provider='anon'`. 구글 로그인은 같은 테이블에 `provider='google'`로 붙인다.
+
+## 배포 — Cloud Run
+
+```bash
+./deploy.sh                    # gcloud 로그인·프로젝트 설정된 상태에서
+MIN_INSTANCES=1 ./deploy.sh    # 개봉일 전후. 콜드 스타트를 없앤다
+```
+
+`--source .` 로 Cloud Build 가 `Dockerfile` 을 빌드한다. DB 비밀번호는 Secret Manager `pumpkin-db-password` 에 들어가고 나머지는 환경변수. 배포가 끝나면 서비스 주소를 Cloudflare Workers 의 `API_ORIGIN` 에 넣는다.
+
+마이그레이션은 배포와 분리되어 있다. 스키마가 바뀌면 로컬에서 `uv run alembic upgrade head` 를 먼저 돌리고 배포한다.
+
+개봉 시각을 정하면 `.env` 의 `OPEN_AT` 을 채우고 다시 배포한다.
