@@ -6,8 +6,7 @@ WORKDIR /app
 
 # 의존성 먼저 (소스가 바뀌어도 이 레이어는 캐시된다)
 COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 
 COPY app ./app
 COPY alembic ./alembic
