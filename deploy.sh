@@ -29,9 +29,13 @@ fi
 
 # Cloud Run 기본 서비스 계정이 시크릿을 읽을 수 있게
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT" --format='value(projectNumber)')
+SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
 gcloud secrets add-iam-policy-binding "$SECRET" --project "$PROJECT" -q \
-  --member="serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor" >/dev/null
+  --member="serviceAccount:$SA" --role="roles/secretmanager.secretAccessor" >/dev/null
+
+# --source 배포는 같은 계정으로 Cloud Build 를 돌린다. 새 프로젝트는 이 권한이 없어서 실패한다.
+gcloud projects add-iam-policy-binding "$PROJECT" -q \
+  --member="serviceAccount:$SA" --role="roles/cloudbuild.builds.builder" >/dev/null
 
 gcloud run deploy "$SERVICE" \
   --source . \
