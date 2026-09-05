@@ -30,6 +30,18 @@ class Settings(BaseSettings):
     # 사탕 넣기 속도 제한 (IP 기준, 분당)
     throw_rate_per_minute: int = 20
 
+    # 로그인. 구글 OAuth 는 openid 스코프만 쓴다 (받는 건 sub 하나).
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    # 리다이렉트 URI 의 기준 주소. 예: https://pumpkin.zzam.today  (로컬: http://127.0.0.1:5173)
+    public_origin: str = "http://127.0.0.1:5173"
+    # 세션 쿠키 서명 키. 비어 있으면 서버가 뜰 때마다 바뀌어 로그인이 풀린다.
+    session_secret: str = ""
+    session_cookie_name: str = "pk_session"
+    session_max_age: int = 60 * 60 * 24 * 120
+    # true 면 바구니 만들기에 로그인이 필요하다. 로컬 개발·테스트는 false.
+    login_required: bool = False
+
     @field_validator("open_at", mode="before")
     @classmethod
     def _empty_to_none(cls, v):

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
 import secrets
 import time
+import uuid
 from collections import defaultdict, deque
 from datetime import datetime, timezone
 
@@ -33,9 +37,72 @@ def get_owner_token(request: Request, settings: Settings = Depends(get_settings)
     return None
 
 
+# ---- 세션 쿠키 (로그인 사용자) -------------------------------------------------
+# 값: <user_id>.<만료 epoch>.<hmac>. 서버 상태 없이 검증한다.
+
+_ephemeral_secret = secrets.token_urlsafe(32)
+
+
+def _secret(settings: Settings) -> bytes:
+    return (settings.session_secret or _ephemeral_secret).encode()
+
+
+def _sign(payload: str, settings: Settings) -> str:
+    mac = hmac.new(_secret(settings), payload.encode(), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(mac).decode().rstrip("=")
+
+
+def make_session(user_id: uuid.UUID, settings: Settings) -> str:
+    payload = f"{user_id}.{int(time.time()) + settings.session_max_age}"
+    return f"{payload}.{_sign(payload, settings)}"
+
+
+def parse_session(value: str | None, settings: Settings) -> uuid.UUID | None:
+    if not value:
+        return None
+    try:
+        uid, exp, sig = value.rsplit(".", 2)
+    except ValueError:
+        return None
+    if not hmac.compare_digest(sig, _sign(f"{uid}.{exp}", settings)):
+        return None
+    if int(exp) < time.time():
+        return None
+    try:
+        return uuid.UUID(uid)
+    except ValueError:
+        return None
+
+
+def set_session_cookie(response: Response, user: User, settings: Settings) -> None:
+    response.set_cookie(
+        settings.session_cookie_name,
+        make_session(user.id, settings),
+        max_age=settings.session_max_age,
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        path="/",
+    )
+
+
+def clear_auth_cookies(response: Response, settings: Settings) -> None:
+    response.delete_cookie(settings.session_cookie_name, path="/")
+    response.delete_cookie(settings.cookie_name, path="/")
+
+
 def get_current_user(
-    db: Session = Depends(get_db), token: str | None = Depends(get_owner_token)
+    request: Request,
+    db: Session = Depends(get_db),
+    token: str | None = Depends(get_owner_token),
+    settings: Settings = Depends(get_settings),
 ) -> User | None:
+    """로그인 세션이 있으면 그 사용자, 없으면 익명 주인 쿠키."""
+    uid = parse_session(request.cookies.get(settings.session_cookie_name), settings)
+    if uid is not None:
+        user = db.get(User, uid)
+        if user is not None:
+            return user
     if token is None:
         return None
     return db.query(User).filter_by(provider=ANON_PROVIDER, provider_id=token).one_or_none()

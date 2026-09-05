@@ -31,7 +31,8 @@ def _cleanup():
         )))
         db.execute(delete(Basket).where(Basket.name.like("__t_%")))
         db.commit()
-        # 바구니 없는 익명 유저 정리
+        # 바구니 없는 익명 유저와 테스트 구글 유저 정리
+        db.query(User).filter(User.provider == "google", User.provider_id.like("sub-%")).delete(synchronize_session=False)
         orphan = db.query(User).filter(User.provider == "anon", ~User.basket.has()).all()
         for u in orphan:
             db.delete(u)

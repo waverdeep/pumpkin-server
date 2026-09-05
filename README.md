@@ -41,6 +41,10 @@ uv run alembic check      # 모델과 DB가 같은지 확인
 | `OPEN_AT` | 개봉 시각(ISO 8601). 비워두면 언제든 개봉 가능 = 테스트 모드. 예 `2026-10-31T20:00:00+09:00` |
 | `COOKIE_SECURE` | 배포 시 `true` |
 | `THROW_RATE_PER_MINUTE` | IP당 분당 사탕 넣기 횟수 (기본 20) |
+| `GOOGLE_CLIENT_ID` `GOOGLE_CLIENT_SECRET` | 구글 OAuth 클라이언트. 비어 있으면 로그인 버튼이 꺼진다 |
+| `PUBLIC_ORIGIN` | 리다이렉트 URI 기준 주소. 로컬 `http://127.0.0.1:5173`, 배포는 deploy.sh 가 `https://pumpkin.zzam.today` 로 넣는다 |
+| `SESSION_SECRET` | 세션 쿠키 서명 키 |
+| `LOGIN_REQUIRED` | `true` 면 바구니 만들기에 로그인 필수. 로컬 기본 false, 배포 기본 true |
 
 ## API
 
@@ -53,7 +57,19 @@ uv run alembic check      # 모델과 DB가 같은지 확인
 | POST | `/api/baskets/{slug}/candies` | 아무나 | 사탕 넣기 (로그인 없음). `sender`는 선택, 12자, 비우면 익명 |
 | GET | `/api/baskets/{slug}/candies` | 주인 | 개봉. 서버 시각이 `OPEN_AT`을 지나야 내려줌 (아니면 423) |
 
-주인 식별은 `pk_owner` httponly 쿠키. `users` 테이블은 `provider` + `provider_id`만 갖고, 지금은 `provider='anon'`. 구글 로그인은 같은 테이블에 `provider='google'`로 붙인다.
+| GET | `/api/auth/google/start?next=/` | 아무나 | 구글 로그인 시작 (scope `openid` 뿐) |
+| GET | `/api/auth/google/callback` | 구글 | 콜백. `sub` 로 users upsert, 세션 쿠키 발급 |
+| POST | `/api/auth/logout` | 주인 | 세션·익명 쿠키 삭제 |
+
+## 로그인
+
+받는 정보는 구글 `sub` 하나. 이메일·프로필을 요청하지 않아 동의 화면에 민감 범위가 없고 검수가 필요 없다. `users` 는 `provider` + `provider_id` 로 식별하고 계정 통합은 하지 않는다.
+
+- 로그인 사용자: `pk_session` 쿠키 (`<user_id>.<만료>.<hmac>`, `SESSION_SECRET` 으로 서명)
+- 익명 사용자(로컬·테스트): `pk_owner` 쿠키. `LOGIN_REQUIRED=false` 일 때만 새로 발급된다
+- 카톡 인앱 브라우저는 구글이 OAuth 를 막는다. 웹이 `kakaotalk://web/openExternal` 로 바깥 브라우저를 연다
+
+구글 콘솔 설정: OAuth 동의 화면(외부, 범위 없음, 프로덕션 게시) → 웹 애플리케이션 클라이언트. 승인된 리디렉션 URI 에 `https://pumpkin.zzam.today/api/auth/google/callback` 과 `http://127.0.0.1:5173/api/auth/google/callback`.
 
 ## 배포 — Cloud Run
 

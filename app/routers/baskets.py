@@ -27,6 +27,7 @@ from app.schemas import (
     MeResponse,
     OpenResponse,
     ThrowResult,
+    UserOut,
 )
 from app.slug import new_slug
 
@@ -79,6 +80,8 @@ def create_basket(
     user: User | None = Depends(get_current_user),
 ):
     if user is None:
+        if settings.login_required:
+            raise HTTPException(status_code=401, detail="바구니를 만들려면 로그인해야 해")
         user = issue_owner(db, response, settings)
     elif user.basket is not None:
         raise HTTPException(status_code=409, detail="바구니는 하나만 가질 수 있어")
@@ -105,11 +108,16 @@ def create_basket(
 def me(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
-    basket: Basket | None = Depends(get_current_basket),
+    user: User | None = Depends(get_current_user),
 ):
-    if basket is None:
-        return MeResponse(basket=None)
-    return MeResponse(basket=_public(db, basket, settings, is_owner=True))
+    me_user = UserOut(provider=user.provider) if user else None
+    basket = user.basket if user else None
+    return MeResponse(
+        user=me_user,
+        basket=_public(db, basket, settings, is_owner=True) if basket else None,
+        login_required=settings.login_required,
+        google_enabled=bool(settings.google_client_id),
+    )
 
 
 @router.get("/baskets/{slug}", response_model=BasketPublic)

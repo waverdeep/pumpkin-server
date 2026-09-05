@@ -17,7 +17,8 @@ def test_health(client):
 
 
 def test_create_basket_sets_cookie_and_me(client):
-    assert client.get("/api/me").json() == {"basket": None}
+    me0 = client.get("/api/me").json()
+    assert me0["basket"] is None and me0["user"] is None
     b = _create(client)
     assert b["name"] == T + "감자"
     assert len(b["slug"]) == 8

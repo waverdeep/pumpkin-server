@@ -38,8 +38,15 @@ class BasketPublic(BaseModel):
     server_time: datetime
 
 
+class UserOut(BaseModel):
+    provider: str  # 'anon' | 'google'
+
+
 class MeResponse(BaseModel):
+    user: UserOut | None
     basket: BasketPublic | None
+    login_required: bool
+    google_enabled: bool
 
 
 class CurseOut(BaseModel):
