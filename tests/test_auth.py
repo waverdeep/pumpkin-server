@@ -47,7 +47,10 @@ def test_start_redirects_to_google_with_openid_only(client, google):
     assert auth_mod.STATE_COOKIE in client.cookies
 
 
-def test_start_without_config(client):
+def test_start_without_config(client, monkeypatch):
+    # .env 에 실제 클라이언트 ID가 있어도 "설정 없음" 경로를 검사한다
+    monkeypatch.setattr(get_settings(), "google_client_id", "")
+    monkeypatch.setattr(get_settings(), "google_client_secret", "")
     assert client.get("/api/auth/google/start", follow_redirects=False).status_code == 503
 
 
